@@ -1,0 +1,145 @@
+office.py — Office Synchronization Model
+Overview
+
+The Office class represents the shared professor’s office and acts as the central synchronization hub for the simulation. 
+It maintains all shared state accessed by student and professor threads and enforces capacity, fairness, and break constraints.
+
+This class replaces global variables, mutexes, and condition variables used in the C (pthreads) implementation.
+
+Class: Office
+Purpose
+
+Track students currently in the office
+
+Enforce class mutual exclusion (Class A vs Class B)
+
+Enforce seat limits
+
+Track fairness and waiting students
+
+Coordinate synchronization between threads
+
+Constants
+MAX_SEATS = 3
+PROFESSOR_LIMIT = 10
+
+Constant	Description
+MAX_SEATS	Maximum number of students allowed in the office
+PROFESSOR_LIMIT	Number of students helped before professor must take a break
+Attributes
+Attribute	Type	Description
+students_in_office	int	Total students currently in the office
+classA_in_office	int	Number of Class A students inside
+classB_in_office	int	Number of Class B students inside
+students_since_break	int	Students helped since last break
+consecutive_count	int	Number of consecutive students from same class
+last_class	str / None	Last class served ("A" or "B")
+prof_on_break	bool	Whether professor is on break
+waiting_A	int	Number of waiting Class A students
+waiting_B	int	Number of waiting Class B students
+lock	threading.Lock	Mutual exclusion lock
+condition	threading.Condition	Student wait/notify condition
+prof_condition	threading.Condition	Professor wait/notify condition
+Thread Safety
+
+All shared state must be accessed while holding lock.
+condition and prof_condition coordinate thread blocking and wake-ups.
+
+Design Notes
+
+All synchronization is centralized in one object
+
+No global variables
+
+Allows safe scaling and clean debugging
+
+professor.py — Professor Thread Logic
+Overview
+
+The Professor class simulates the professor’s behavior during office hours. It runs in its own thread and coordinates with student threads through the shared Office object.
+
+Class: Professor
+Purpose
+
+Monitor student progress
+
+Enforce mandatory breaks
+
+Wake students when office reopens
+
+Constructor
+Professor(office)
+
+Parameter	Type	Description
+office	Office	Shared office state and synchronization object
+Methods
+take_break()
+def take_break(self)
+
+
+Description:
+Simulates the professor taking a break after helping the maximum number of students.
+
+Behavior:
+
+Sleeps for a fixed duration
+
+Resets break counters
+
+Wakes waiting students
+
+Thread Safety:
+Locks the office before modifying shared state.
+
+run()
+def run(self)
+
+
+Description:
+Main loop executed by the professor thread.
+
+Behavior:
+
+Waits until:
+
+students_since_break >= PROFESSOR_LIMIT
+
+students_in_office == 0
+
+Sets professor to break mode
+
+Calls take_break()
+
+Repeats indefinitely
+
+Blocking Conditions:
+Uses prof_condition.wait() to sleep efficiently until signaled.
+
+Thread Model
+threading.Thread(target=prof.run)
+
+
+The professor runs continuously and reacts to signals from student threads.
+
+C → Python Concept Mapping
+C (pthreads)	Python
+void* professor_thread(void*)	Professor.run()
+pthread_mutex_lock	with office.lock:
+pthread_cond_wait	condition.wait()
+pthread_cond_signal	condition.notify()
+pthread_cond_broadcast	condition.notify_all()
+Why This Architecture Works Well
+
+Clear separation of concerns
+
+Thread-safe by design
+
+Easy to add:
+
+logging
+
+visualization
+
+metrics collection
+
+Very attractive to recruiters reviewing concurrency + data projects
