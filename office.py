@@ -1,9 +1,11 @@
 import threading
 from typing import NamedTuple
-from ui import office_panel, event, fairness_switch
+from rich.live import Live
+from rich.panel import Panel
+from rich.text import Text
+from ui import render_office_panel, event, fairness_switch
 
 class Office:
-    #Similart to a global variable for the class (DEFINE)
     MAX_SEATS = 3
     PROFESSOR_LIMIT = 10
 
@@ -19,131 +21,150 @@ class Office:
 
         self.waiting_A = 0
         self.waiting_B = 0
+        self.waiting_A_ids = []
+        self.waiting_B_ids = []
 
+        # NEW: Log of recent events (entered/left)
+        self.log = []
+        self.log_limit = 10  # Max number of log entries to keep
         # Synchronization
         self.lock = threading.Lock()
         self.condition = threading.Condition(self.lock)
         self.prof_condition = threading.Condition(self.lock)
-    
+
+
+    def add_log(self, message):
+        self.log.append(message)
+        if len(self.log) > self.log_limit:
+            self.log.pop(0)
+            
     def _snapshot(self):
         return {
             "students_in_office": self.students_in_office,
-            "classA_in_office": self.classA_in_office,
-            "classB_in_office": self.classB_in_office,
-            "waiting_A": self.waiting_A,
-            "waiting_B": self.waiting_B,
-            "students_since_break": self.students_since_break,
-            "consecutive_count": self.consecutive_count,
             "last_class": self.last_class,
-            "prof_on_break": self.prof_on_break
+            "consecutive_count": self.consecutive_count,
+            "students_since_break": self.students_since_break,
+            "prof_on_break": self.prof_on_break,
+            "waiting_A_ids": list(self.waiting_A_ids),
+            "waiting_B_ids": list(self.waiting_B_ids),
+            "log": list(self.log)  # keep all recent events
         }
 
+
+
+
+
+    def get_waiting_ids(self, class_type):
+        return self.waiting_A_ids if class_type == 'A' else self.waiting_B_ids
 
     def enter_class_a(self, student):
         with self.condition:
             self.waiting_A += 1
+            self.waiting_A_ids.append(student.id)
+            self.add_log(f"Student {student.id} (Class A) is waiting...")
 
-            while (self.students_in_office >= self.MAX_SEATS 
-                or self.classB_in_office > 0 
-                or self.students_since_break >= self.PROFESSOR_LIMIT 
+
+            while (self.students_in_office >= self.MAX_SEATS
+                or self.classB_in_office > 0
+                or self.students_since_break >= self.PROFESSOR_LIMIT
                 or self.prof_on_break
-                or (self.consecutive_count == 5 and self.last_class == "A" and self.waiting_B > 0)
-                ):
+                or (self.consecutive_count == 5 and self.last_class == "A" and self.waiting_B > 0)):
                 self.condition.wait()
 
-            # Student is allowed to enter
             self.waiting_A -= 1
+            self.waiting_A_ids.remove(student.id)
             self.students_in_office += 1
             self.classA_in_office += 1
             self.students_since_break += 1
+
+            self.add_log(f"Student {student.id} (Class A) entered")
 
             # Fairness tracking
             switched = False
             if self.last_class == "A":
                 self.consecutive_count += 1
-                # Debug: show switch if 5 consecutive reached
                 if self.consecutive_count == 5 and self.waiting_B > 0:
-                    print("\n--- Switching to Class B after 5 consecutive Class A students ---\n")
                     switched = True
+                    self.add_log("--- Switching to Class B after 5 consecutive Class A students ---")
+
             else:
                 self.last_class = "A"
                 self.consecutive_count = 1
+
             snapshot = self._snapshot()
+            if self.live:
+                self.live.update(render_office_panel(snapshot))
+            
+            return switched
 
-        #UI outside of lock
         event(f"Student {student.id} (Class A) entered", "A")
-        office_panel(self)
-
         if switched:
             fairness_switch(from_class="A", to_class="B")
 
     def enter_class_b(self, student):
         with self.condition:
             self.waiting_B += 1
+            self.waiting_B_ids.append(student.id)
+            self.add_log(f"Student {student.id} (Class B) is waiting...")
 
-            while (self.students_in_office >= self.MAX_SEATS 
-                or self.classA_in_office > 0 
-                or self.students_since_break >= self.PROFESSOR_LIMIT 
+            while (self.students_in_office >= self.MAX_SEATS
+                or self.classA_in_office > 0
+                or self.students_since_break >= self.PROFESSOR_LIMIT
                 or self.prof_on_break
-                or (self.consecutive_count == 5 and self.last_class == "B" and self.waiting_A > 0)
-                ):
+                or (self.consecutive_count == 5 and self.last_class == "B" and self.waiting_A > 0)):
                 self.condition.wait()
 
-            # Student is allowed to enter
             self.waiting_B -= 1
+            self.waiting_B_ids.remove(student.id)
             self.students_in_office += 1
             self.classB_in_office += 1
             self.students_since_break += 1
 
+            self.add_log(f"Student {student.id} (Class B) entered")
 
-            # Fairness tracking
+
             switched = False
             if self.last_class == "B":
                 self.consecutive_count += 1
-                # Debug: show switch if 5 consecutive reached
                 if self.consecutive_count == 5 and self.waiting_A > 0:
-                    print("\n--- Switching to Class A after 5 consecutive Class B students ---\n")
                     switched = True
+                    self.add_log("--- Switching to Class A after 5 consecutive Class B students ---")
             else:
                 self.last_class = "B"
                 self.consecutive_count = 1
+
             snapshot = self._snapshot()
-        #UI outside of lock
-        event(f"Student {student.id} (Class B) entered", "B")
-        office_panel(self)
+            if self.live:
+                self.live.update(render_office_panel(snapshot))
 
         if switched:
             fairness_switch(from_class="B", to_class="A")
-    
+
     def leave_class_a(self, student):
         with self.condition:
             self.students_in_office -= 1
             self.classA_in_office -= 1
-            
-            #signal professor if break conditions are met
-            if (self.students_in_office == 0 and self.students_since_break >= self.PROFESSOR_LIMIT):
+            self.add_log(f"Student {student.id} (Class A) left")
+            self.condition.notify_all()
+            snapshot = self._snapshot()
+            if self.live:
+                self.live.update(render_office_panel(snapshot))
+
+            if self.students_in_office == 0 and self.students_since_break >= self.PROFESSOR_LIMIT:
                 self.prof_condition.notify()
 
-            # Wake up waiting students
-            snapshot = self._snapshot()
-            self.condition.notify_all()
-        event(f"Student {student.id} (Class A) left")
-        office_panel(snapshot)
+           
 
-    
     def leave_class_b(self, student):
         with self.condition:
             self.students_in_office -= 1
             self.classB_in_office -= 1
-            
+            self.add_log(f"Student {student.id} (Class B) left")
+            self.condition.notify_all()
+            snapshot = self._snapshot()
+            if self.live:
+                self.live.update(render_office_panel(snapshot))
 
-            #signal professor if break conditions are met
-            if (self.students_in_office == 0 and self.students_since_break >= self.PROFESSOR_LIMIT):
+            if self.students_in_office == 0 and self.students_since_break >= self.PROFESSOR_LIMIT:
                 self.prof_condition.notify()
 
-            # Wake up waiting students
-            snapshot = self._snapshot()
-            self.condition.notify_all()
-
-        event(f"Student {student.id} (Class B) left", "B")
-        office_panel(snapshot)

@@ -33,7 +33,7 @@ class Professor:
             with self.office.lock:
                 while not (
                     self.office.students_since_break >= self.office.PROFESSOR_LIMIT
-                    and self.office.students_in_office == 0
+                    and self.office.students_in_office == 0 and self.office.waiting_A > 0 and self.office.waiting_B > 0
                 ):
                     self.office.prof_condition.wait()
                 

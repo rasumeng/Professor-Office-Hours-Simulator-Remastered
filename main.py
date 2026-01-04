@@ -5,6 +5,8 @@ import time
 from office import Office
 from professor import Professor
 from student import Student
+from ui import  render_office_panel, console
+from rich.live import Live
 
 def load_students(filename, office):
     students = []
@@ -24,16 +26,36 @@ def load_students(filename, office):
 def main():
     office = Office()
     professor = Professor(office)
-    threading.Thread(target=professor.run, daemon=True).start()
-
     students = load_students("students.csv", office)
 
-    for student in students:
-        student.start()
-    for student in students:
-        student.join()
+    # Use 'with' here to manage the live panel
+    with Live(render_office_panel(office._snapshot()), refresh_per_second=4, console=console) as live:
+        office.live = live  # so office methods can update panel
+
+        # Start professor thread
+        threading.Thread(target=professor.run, daemon=True).start()
+
+        # Start all students
+        for student in students:
+            student.start()
+
+        # Wait for all students to finish
+        for student in students:
+            student.join()
+
+        # All students finished, update final snapshot
+        final_snapshot = office._snapshot()
+
+        # Make sure office shows empty
+        final_snapshot['students_in_office'] = 0
+        final_snapshot['last_class'] = None
+        final_snapshot['consecutive_count'] = 0
+
+        live.update(render_office_panel(final_snapshot))
 
     print("\nOffice hour simulation complete.\n")
+
+
 
 if __name__ == "__main__":
     main()

@@ -12,29 +12,22 @@ class Student(threading.Thread):
         self.office = office
 
     def run(self):
-        
-        # Simulate arrival delay
+        # simulate arrival
         time.sleep(self.arrival_time)
+        if self.student_class == "A":
+            self.office.enter_class_a(self)
+        else:
+            self.office.enter_class_b(self)
 
-        # Enter office 
-        self.enter_office()
-
-        print(f"Student {self.id} from class {self.student_class} entered the office.")
-
-        # Ask questions
-        print(
-            f"Student {self.id} from class {self.student_class} "
-            f"Starts asking questions for {self.question_time} minutes"
-        )
-
+        # simulate question time
         time.sleep(self.question_time)
 
-        print(f"Student {self.id} from class {self.student_class} prepares to leave")
+        # leave office
+        if self.student_class == "A":
+            self.office.leave_class_a(self)
+        else:
+            self.office.leave_class_b(self)
 
-        # Leave the office
-        self.leave_office()
-
-        print(f"Student {self.id} from class {self.student_class} left the office")
 
     def enter_office(self):
         if self.student_class == "A":
