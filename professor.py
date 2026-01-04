@@ -1,5 +1,6 @@
 import threading
 import time
+from rich.progress import track
 
 class Professor:
     #Initialize threads and variables
@@ -41,3 +42,14 @@ class Professor:
 
             # Take break outside the lock to avoid blocking students unnecessarily
             self.take_break()
+            
+    def take_break(self):
+        for _ in track(range(5), description="☕ Professor on break"):
+            time.sleep(1)
+
+        with self.office.lock:
+            self.office.students_since_break = 0
+            self.office.consecutive_count = 0
+            self.office.last_class = None
+            self.office.prof_on_break = False
+            self.office.condition.notify_all()
