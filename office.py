@@ -3,7 +3,7 @@ from typing import NamedTuple
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
-from ui import render_office_panel, event, fairness_switch
+from ui import render_office_panel, event#, fairness_switch Commented out for future use
 
 class Office:
     MAX_SEATS = 3
@@ -98,8 +98,8 @@ class Office:
             return switched
 
         event(f"Student {student.id} (Class A) entered", "A")
-        if switched:
-            fairness_switch(from_class="A", to_class="B")
+        #if switched:
+            #fairness_switch(from_class="A", to_class="B")
 
     def enter_class_b(self, student):
         with self.condition:
@@ -137,8 +137,8 @@ class Office:
             if self.live:
                 self.live.update(render_office_panel(snapshot))
 
-        if switched:
-            fairness_switch(from_class="B", to_class="A")
+        #if switched:
+            #fairness_switch(from_class="B", to_class="A")
 
     def leave_class_a(self, student):
         with self.condition:
