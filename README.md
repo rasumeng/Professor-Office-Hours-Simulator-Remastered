@@ -53,16 +53,6 @@ Students are loaded from a CSV file (`students.csv`), allowing easy modification
 
 ---
 
-## 🗂️ Project Structure
-├── main.py # Simulation entry point
-├── office.py # Core synchronization & fairness logic
-├── professor.py # Professor behavior & break handling
-├── student.py # Student thread behavior
-├── students.csv # Input data for student arrivals
-└── README.md
-
----
-
 ## ▶️ How to Run
 
 ### Requirements
