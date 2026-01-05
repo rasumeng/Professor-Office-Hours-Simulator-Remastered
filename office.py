@@ -28,7 +28,7 @@ class Office:
         self.log = []
         self.log_limit = 10  # Max number of log entries to keep
         # Synchronization
-        self.lock = threading.Lock()
+        self.lock = threading.Lock() 
         self.condition = threading.Condition(self.lock)
         self.prof_condition = threading.Condition(self.lock)
 
