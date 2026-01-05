@@ -70,4 +70,8 @@ Students are loaded from a CSV file (`students.csv`), allowing easy modification
 
 ### Run the Simulation
 ```bash
+cd .\Professor-Office-Hours-Simulator-Remastered\
+python -m venv venv
+venv\Scripts\activate
+python -m pip install -r requirements.txt
 python main.py
